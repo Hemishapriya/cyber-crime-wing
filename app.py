@@ -552,8 +552,7 @@ def graph_data(ack_no):
                             'transactions_from_parent': from_to_map[t.from_account][t.to_account]
                         }
                         parent['children'].append(child)
-
-            return root
+ pr            return root
 
         result = build_hierarchy(transactions)
         print(f"Built hierarchy with {len(result['children'])} root children")
