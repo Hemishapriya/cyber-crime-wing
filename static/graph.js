@@ -711,7 +711,6 @@ function drawTree(root) {
         .style('font-size', '12px').style('fill', '#000')
         .text(`Acc No: ${d.data.name || 'N/A'}`);
       let bankName = d.data.action || d.data.bank || 'Unknown Bank';
-      if (bankName.length > 25) bankName = bankName.slice(0, 22) + '...';
 
       n.append('text')
         .attr('x', 0).attr('y', 24)
@@ -726,7 +725,7 @@ function drawTree(root) {
                     d.data.transactions_from_parent.length > 1;
 
  // ✅ Remove old amount before adding new
- n.selectAll(".amt-text").remove();
+  n.selectAll(".amt-text").remove();
 
  // Acc No
  n.append("text")
@@ -789,6 +788,44 @@ function drawTree(root) {
      .text(`Amt: ₹${amount}`);
  }
 }
+
+    // Adjust box width and text sizing to prevent overflow
+    try {
+      const padding = 24;
+      let maxTextWidth = 0;
+      n.selectAll('text').each(function () {
+        const bbox = this.getBBox();
+        if (bbox && bbox.width > maxTextWidth) maxTextWidth = bbox.width;
+      });
+      const currentRect = n.select('rect');
+      let adjustedWidth = Math.max(250, Math.min(maxTextWidth + padding, 360));
+      currentRect.attr('x', -adjustedWidth / 2).attr('width', adjustedWidth);
+
+      // Reduce font-size for any line still exceeding the box
+      n.selectAll('text').each(function () {
+        const el = d3.select(this);
+        const w = this.getBBox().width;
+        const limit = adjustedWidth - padding;
+        if (w > limit) {
+          const fs = parseFloat(el.style('font-size')) || 12;
+          const ratio = Math.max(0.75, Math.min(1, limit / w));
+          const newFs = Math.max(10, Math.floor(fs * ratio));
+          el.style('font-size', `${newFs}px`);
+        }
+      });
+
+      // Final fit for branch line if needed
+      const branchSel = n.select('.branch-text');
+      if (!branchSel.empty()) {
+        const w = branchSel.node().getBBox().width;
+        const limit = adjustedWidth - padding;
+        if (w > limit) {
+          branchSel.attr('lengthAdjust', 'spacingAndGlyphs').attr('textLength', limit);
+        }
+      }
+    } catch (e) {
+      // silently ignore sizing errors
+    }
 
     const iconData = [];
 
@@ -1101,16 +1138,21 @@ function drawTree(root) {
         // Use a safe ID (replace non-alphanumeric characters)
         const safeId = `branch-${String(d.data.name || '').replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
-        detailsContent.innerHTML =
+        const isRepeated = Array.isArray(d.data.transactions_from_parent) && d.data.transactions_from_parent.length > 1;
+        let baseHtml =
           `<div class="detail-row"><span class="label">Layer:</span> ${d.data.layer - 2 || '—'}</div>` +
           `<div class="detail-row"><span class="label">Account:</span> ${d.data.name || '—'}</div>` +
           `<div class="detail-row"><span class="label">IFSC:</span> ${d.data.ifsc || '—'}</div>` +
           `<div class="detail-row" id="${safeId}"><span class="label">Branch:</span> ${d.data.branch || branchCache.get(d.data.ifsc) || 'Unknown'}</div>` +
-          `<div class="detail-row"><span class="label">Bank/FI:</span> ${d.data.bank || '—'}</div>` +
-          `<div class="detail-row"><span class="label">Date:</span> ${d.data.date || '—'}</div>` +
-          `<div class="detail-row"><span class="label">Txn ID:</span> ${d.data.txid || '—'}</div>` +
-          `<div class="detail-row"><span class="label">Amount:</span> ₹${d.data.amt || '0.0'}</div>` +
-          `<div class="detail-row"><span class="label">Disputed:</span> ₹${d.data.disputed || '0.0'}</div>`;
+          `<div class="detail-row"><span class="label">Bank/FI:</span> ${d.data.bank || '—'}</div>`;
+        if (!isRepeated) {
+          baseHtml +=
+            `<div class="detail-row"><span class="label">Date:</span> ${d.data.date || '—'}</div>` +
+            `<div class="detail-row"><span class="label">Txn ID:</span> ${d.data.txid || '—'}</div>` +
+            `<div class="detail-row"><span class="label">Amount:</span> ₹${d.data.amt || '0.0'}</div>` +
+            `<div class="detail-row"><span class="label">Disputed:</span> ₹${d.data.disputed || '0.0'}</div>`;
+        }
+        detailsContent.innerHTML = baseHtml;
         
         // Setup KYC section with current transaction data
         const kycSection = document.getElementById('kycDetailsSection');
@@ -1622,9 +1664,9 @@ function downloadHoldGraphPdf(path, ackNo) {
           holdText.setAttribute("font-family", "Arial, sans-serif");
           holdText.style.textShadow = "0 0 2px white";
           holdText.textContent = `Put-On hold Amount: ₹${holdInfo.amount || "0.0"}`;
-          svg.appendChild(holdText);
-        }
-      } else if (globalIndex > 0) {
+      svg.appendChild(holdText);
+    }
+  } else if (globalIndex > 0) {
         // Add IFSC code info for intermediate nodes
         const ifscText = document.createElementNS(svgNS, "text");
         ifscText.setAttribute("x", x);
@@ -1646,17 +1688,17 @@ function downloadHoldGraphPdf(path, ackNo) {
         amtText.setAttribute("font-family", "Arial, sans-serif");
         amtText.style.textShadow = "0 0 2px white";
         amtText.textContent = `Transacted Amt: ₹${node.data.amt || "0.0"}`;
-        svg.appendChild(amtText);
+      svg.appendChild(amtText);
 
-      }
+    }
 
-      // Draw line to next node if not last in chunk
+    // Draw line to next node if not last in chunk
       if (i < chunk.length - 1) {
         const line = document.createElementNS(svgNS, "line");
         line.setAttribute("x1", x);
         line.setAttribute("y1", y + boxHeight / 2);
         line.setAttribute("x2", x);
-        line.setAttribute("y2", y + verticalSpacing - boxHeight / 2);
+      line.setAttribute("y2", y + verticalSpacing - boxHeight / 2);
         line.setAttribute("stroke", "#888");
         line.setAttribute("stroke-width", 2);
         svg.appendChild(line);

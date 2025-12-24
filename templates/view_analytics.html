@@ -104,18 +104,32 @@
 
     <div class="metrics">
         <div class="metric">
-            <h2>{{ total_uploaded_files }}</h2>
+            <h2 id="metricFiles">{{ total_uploaded_files }}</h2>
             <p>Total Uploaded Files</p>
         </div>
         <div class="metric">
-            <h2>{{ total_txns }}</h2>
+            <h2 id="metricTxns">{{ total_txns }}</h2>
             <p>Total Transactions</p>
         </div>
         <div class="metric">
-            <h2>₹{{ '%.2f'|format(total_amount) }}</h2>
+            <h2 id="metricAmt">₹{{ '%.2f'|format(total_amount) }}</h2>
             <p>Total Amount</p>
         </div>
     </div>
+    <script>
+      (function () {
+        function fmtNum(el, isCurrency=false) {
+          if (!el) return;
+          const raw = el.textContent.replace(/[^\d.]/g, '');
+          const num = Number(raw || 0);
+          const str = num.toLocaleString('en-IN', { minimumFractionDigits: isCurrency ? 2 : 0, maximumFractionDigits: isCurrency ? 2 : 0 });
+          el.textContent = isCurrency ? `₹${str}` : str;
+        }
+        fmtNum(document.getElementById('metricFiles'), false);
+        fmtNum(document.getElementById('metricTxns'), false);
+        fmtNum(document.getElementById('metricAmt'), true);
+      })();
+    </script>
 
     <h3>📁 Transactions Per File</h3>
     <table>

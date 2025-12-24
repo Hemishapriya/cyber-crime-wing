@@ -391,7 +391,7 @@ def upload_excel():
                 bank_name=clean_bank_name(row.get('Bank/FIs')),
                 ifsc_code=str(row.get('Ifsc Code', '')).strip(),
                 txn_date=str(row.get('Transaction Date', '')).strip(),
-                txn_id=str(row.get('Transaction Id / UTR Number', '')).strip(),
+                txn_id=str(row.get('Transaction ID / UTR Number2', '')).strip(),
                 amount=clean_amount(row.get('Transaction Amount')),
                 disputed_amount=clean_amount(row.get('Disputed Amount')),
                 action_taken=str(row.get('Action Taken By bank', '')).strip(),

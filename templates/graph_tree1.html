@@ -403,6 +403,24 @@
       color: #111827;
     }
 
+    /* Header search input */
+    .search-input {
+      height: 36px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      border: 1px solid #cbd5e1;
+      background: #f1f5f9;
+      color: #0f172a;
+      width: 300px;
+      outline: none;
+    }
+    .search-input::placeholder {
+      color: #64748b;
+    }
+    .search-highlight {
+      stroke: #3b82f6 !important;
+      stroke-width: 3 !important;
+    }
     /* Small toast to show icon names */
     #iconToast {
       position: fixed;
@@ -664,6 +682,8 @@
       <h2>Fund Flow Graph - Ack No: {{ ack_no }}</h2>
     </div>
     <div class="user-info" style="display: flex; align-items: center; gap: 12px;">
+      <input id="headerSearch" class="search-input" type="text" placeholder="Search account number" list="accountList">
+      <datalist id="accountList"></datalist>
       <button id="legendToggle" class="icon-btn" title="Show Legend" aria-label="Show Legend">📚</button>
       <button id="statewiseSummaryBtn" class="icon-btn state" title="Statewise Summary" aria-label="Statewise Summary">📶</button>
       <button id="expandAllBtn" class="icon-btn expand" title="Expand All Nodes" aria-label="Expand All Nodes">🗂️</button>
@@ -802,7 +822,7 @@
   <script>
     const ackNo = "{{ ack_no }}";
     // Expose viewer role to JS for read-only behavior
-    window.isViewerRole = {{ 'true' if role == 'Viewer' else 'false' }};
+    window.isViewerRole = "{{ 'true' if role == 'viewer' else 'false' }}";
     let toastTimer = null;
 
     // Helper to show icon name briefly
@@ -859,6 +879,74 @@
         }
         showIconName("Legend");
       };
+    }
+
+    // Account search: find node by account number and show its related tree from Ack No
+    const headerSearch = document.getElementById("headerSearch");
+    function buildAccountOptions() {
+      const list = document.getElementById("accountList");
+      if (!list || list.children.length) return;
+      const data = window.graphData;
+      if (!data) return;
+      const seen = new Set();
+      const stack = [data];
+      while (stack.length) {
+        const node = stack.pop();
+        const acc = node?.name;
+        if (acc && !seen.has(acc)) {
+          seen.add(acc);
+          const opt = document.createElement("option");
+          opt.value = acc;
+          list.appendChild(opt);
+        }
+        (node?.children || []).forEach(c => stack.push(c));
+      }
+    }
+    if (headerSearch) {
+      headerSearch.addEventListener("focus", () => {
+        // populate suggestions on first focus
+        buildAccountOptions();
+      });
+      headerSearch.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        const q = (e.target.value || "").trim().toLowerCase();
+        if (!q) return;
+        // Prefer built-in path expansion if available
+        if (typeof expandHoldAccount === "function") {
+          expandHoldAccount(e.target.value.trim());
+          return;
+        }
+        // Fallback: highlight first matching node and open details
+        const svg = d3.select("#treeSvg");
+        const nodes = svg.selectAll(".node");
+        let found = null;
+        let foundEl = null;
+        nodes.each(function(d) {
+          const name = String(d?.data?.name || "").toLowerCase();
+          if (!found && name.includes(q)) {
+            found = d;
+            foundEl = this;
+          }
+        });
+        nodes.select("rect").classed("search-highlight", false)
+          .attr("stroke", function(d){ return d?.data?.hold_info ? "#dc2626" : "#1e293b"; })
+          .attr("stroke-width", function(d){ return d?.data?.hold_info ? 3 : 1.5; });
+        if (!found || !foundEl) return;
+        d3.select(foundEl).select("rect").classed("search-highlight", true);
+        const svgEl = d3.select("#treeSvg");
+        const gSel = svgEl.select("g");
+        if (!gSel.empty()) {
+          const width = svgEl.node().clientWidth || 1200;
+          const centerX = (width / 2) - found.x;
+          const centerY = 80;
+          svgEl.transition().duration(500).call(
+            d3.zoom().on('zoom', e => gSel.attr('transform', e.transform)).transform,
+            d3.zoomIdentity.translate(centerX, centerY).scale(1.0)
+          );
+        }
+        const evt = new MouseEvent("dblclick", { bubbles: true, cancelable: true });
+        foundEl.dispatchEvent(evt);
+      });
     }
 
     // Statewise Summary Button
@@ -951,11 +1039,11 @@
               <h3 class="state-link" style="cursor:pointer; color:#3b82f6;" data-state="${stateData.state || 'Unknown'}">State: ${stateData.state || 'Unknown'}</h3>
               <div class="summary-row">
                 <span class="summary-label">Total Transactions:</span>
-                <span class="summary-value">${stateData.total_transactions}</span>
+                <span class="summary-value">${Number(stateData.total_transactions || 0).toLocaleString('en-IN')}</span>
               </div>
               <div class="summary-row">
                 <span class="summary-label">Total Amount:</span>
-                <span class="summary-value">₹${stateData.total_amount.toLocaleString()}</span>
+                <span class="summary-value">₹${Number(stateData.total_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
           `;
@@ -1024,7 +1112,7 @@
                 <td style="border:1px solid #e5e7eb; padding:8px;">${transaction.bank_name || 'Unknown'}</td>
                 <td style="border:1px solid #e5e7eb; padding:8px;">${transaction.ifsc_code || 'N/A'}</td>
                 <td style="border:1px solid #e5e7eb; padding:8px;">${transaction.layer || 'N/A'}</td>
-                <td style="border:1px solid #e5e7eb; padding:8px;">₹${transaction.amount || '0.0'}</td>
+                <td style="border:1px solid #e5e7eb; padding:8px;">₹${Number(transaction.amount || 0).toLocaleString('en-IN')}</td>
                 <td style="border:1px solid #e5e7eb; padding:8px;">${transaction.date || 'N/A'}</td>
                 <td style="border:1px solid #e5e7eb; padding:8px;">${transaction.transaction_id || 'N/A'}</td>
               </tr>
