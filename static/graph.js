@@ -556,9 +556,7 @@ function bfsAssignLayers(root) {
     if (node.children) {
       node.children.forEach(child => {
         if (!child || !child.data) return;
-        if (!child.data.layer || child.data.layer < currentLayer + 1) {
-          child.data.layer = currentLayer + 1;
-        }
+        child.data.layer = currentLayer + 1;
         queue.push(child);
       });
     }
